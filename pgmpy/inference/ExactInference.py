@@ -11,6 +11,7 @@ from pgmpy.factors.discrete import factor_product
 from pgmpy.inference import Inference
 from pgmpy.models import JunctionTree
 from pgmpy.utils import StateNameDecorator
+from pgmpy.inference.EliminationOrder import WeightedMinFill
 
 
 class VariableElimination(Inference):
@@ -59,11 +60,11 @@ class VariableElimination(Inference):
                         working_factors[var].add(factor_reduced)
                 del working_factors[evidence_var]
 
-        # TODO: Modify it to find the optimal elimination order
         if not elimination_order:
-            elimination_order = list(set(self.variables) -
+            vars_to_eliminate = list(set(self.variables) -
                                      set(variables) -
                                      set(evidence.keys() if evidence else []))
+            elimination_order = WeightedMinFill(self.model).get_elimination_order(vars_to_eliminate)
 
         elif any(var in elimination_order for var in
                  set(variables).union(set(evidence.keys() if evidence else []))):
