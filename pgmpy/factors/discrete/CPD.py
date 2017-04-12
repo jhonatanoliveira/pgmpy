@@ -7,6 +7,7 @@ from warnings import warn
 import numbers
 
 import numpy as np
+import networkx as nx
 
 from pgmpy.factors.discrete import DiscreteFactor
 from pgmpy.extern import tabulate
@@ -14,6 +15,7 @@ from pgmpy.extern import six
 from pgmpy.extern.six.moves import range, zip
 from pgmpy.utils import StateNameInit
 from pgmpy.utils import StateNameDecorator
+from pgmpy.utils import _mdg_has_labeled_child, NodeIdGenerator
 
 
 class TabularCPD(DiscreteFactor):
@@ -468,6 +470,75 @@ class TabularCPD(DiscreteFactor):
 
     def get_evidence(self):
         return self.variables[:0:-1]
+
+
+
+class AlgebraicDecisionDiagram():
+    """
+    Defines the conditional probability distribution table with a Algebraic Decision Diagram representation.
+    """
+
+    @staticmethod
+    def to_decision_tree(tabularCPD, var_ordering=None):
+        """
+        Converts a TabularCPD to a Decision Tree.
+        """
+
+        if not var_ordering:
+            var_ordering = tabularCPD.variables
+
+        # In case the given variable ordering contains a global ordering, that is one involving variables outside
+        # this factor's scope, this guarantees a ordering only for variables in this factor.
+        var_ordering = [var for var in var_ordering if var in tabularCPD.variables]
+        if len(var_ordering) == 0:
+            raise ValueError("Given variable ordering does not involve CPD variables.")
+
+        var_cards = tabularCPD.get_cardinality(var_ordering)
+
+        id_generator = NodeIdGenerator()
+
+        dag = nx.MultiDiGraph()
+        root = id_generator.get_next_id()
+        dag.add_node(root, {"label": var_ordering[0]})
+
+        assignment = {var:0 for var in var_ordering}
+
+        for value in tabularCPD.values.reshape(np.product(tabularCPD.cardinality)):
+
+            curr_node = root
+
+            for node_ord_idx, node_label in enumerate(var_ordering):
+                nxt_node_ord_idx = node_ord_idx + 1
+                # Still has variable in the ordering, then add an edge between current node and the next in ordering
+                if nxt_node_ord_idx < len(var_ordering):
+                    next_node_label = var_ordering[nxt_node_ord_idx]
+                    child_node = _mdg_has_labeled_child(dag, curr_node, next_node_label, assignment[node_label])
+                    if not child_node:
+                        child_node = id_generator.get_next_id()
+                        dag.add_node(child_node, {"label": next_node_label, "type":"variable"})
+                        dag.add_edge(curr_node,child_node,key=assignment[node_label],attr_dict={"value":assignment[node_label], "label":assignment[node_label]})
+                    curr_node = child_node
+
+                # No more variable in ordering, then add an edge between current node and the probability leaf node
+                else:
+                    child_node = id_generator.get_next_id()
+                    dag.add_node(child_node, {"label": value, "type":"sink", "value": value})
+                    dag.add_edge(curr_node,child_node,key=assignment[node_label],attr_dict={"value":assignment[node_label], "label":assignment[node_label]})
+
+
+            for var in var_ordering:
+              assignment[var] += 1
+              if assignment[var] == var_cards[var]:
+                assignment[var] = 0
+              else:
+                break
+        return dag
+
+
+
+
+
+
 
 # Commenting out because not used anywhere for now and not implemented in a very good way.
 # class TreeCPD(nx.DiGraph):
