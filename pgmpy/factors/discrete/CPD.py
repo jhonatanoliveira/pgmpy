@@ -15,7 +15,7 @@ from pgmpy.extern import six
 from pgmpy.extern.six.moves import range, zip
 from pgmpy.utils import StateNameInit
 from pgmpy.utils import StateNameDecorator
-from pgmpy.utils import _mdg_has_labeled_child, NodeIdGenerator
+from pgmpy.utils import _mdg_has_labeled_child, _mdg_move_parents_to_new_child, NodeIdGenerator
 
 
 class TabularCPD(DiscreteFactor):
@@ -502,8 +502,8 @@ class AlgebraicDecisionDiagram():
         dag.add_node(root, {"label": var_ordering[0]})
 
         assignment = {var:0 for var in var_ordering}
-
-        for value in tabularCPD.values.reshape(np.product(tabularCPD.cardinality)):
+        # Here, order "F" assumes first variable value changing faster
+        for value in tabularCPD.values.reshape(np.product(tabularCPD.cardinality), order="F"):
 
             curr_node = root
 
@@ -535,7 +535,75 @@ class AlgebraicDecisionDiagram():
         return dag
 
 
+    @staticmethod
+    def reduce(multiDiGraph, inplace=True):
+        """
+        Given an ADD as a Multi Directed Graph, this method removes all redundant nodes and return a reduced ADD.
+        """
 
+        graph = None
+        if inplace:
+            graph = multiDiGraph
+        else:
+            graph = multiDiGraph.copy()
+
+        # to_check = set([])
+
+        # Reduce redundant leaf nodes
+        leaf_nodes = [n for n in graph.nodes() if graph.out_degree(n) == 0]
+        leaf_node_ids = {}
+        for leaf in leaf_nodes:
+            if graph.node[leaf]["value"] in leaf_node_ids:
+                new_leaf_node = leaf_node_ids[graph.node[leaf]["value"]]
+                _mdg_move_parents_to_new_child(graph,leaf,new_leaf_node)
+                graph.remove_node(leaf)
+                # to_check = to_check.union(set(graph.predecessors(new_leaf_node)))
+            else:
+                leaf_node_ids[graph.node[leaf]["value"]] = leaf
+
+
+        # Reduce redundant variable nodes
+        modified = True
+        while modified:
+            modified = False
+            # Remove variable nodes with children being all the same (identical parallel edges)
+            duplicated_edges = True
+            while duplicated_edges:
+                duplicated_edges = False
+                for curr_node in graph.nodes():
+                    children = graph.successors(curr_node)
+                    if (len(children) > 0) and all([children[0] == n for n in children]):
+                        _mdg_move_parents_to_new_child(graph, curr_node, children[0])
+                        graph.remove_node(curr_node)
+                        modified = True
+                        duplicated_edges = True
+                        break
+            # Remove variable nodes with mirror nodes in the graph
+            node_info_keys = [None] * len(graph.nodes())
+            node_info_values = [None] * len(graph.nodes())
+            for idx, node in enumerate(graph.nodes()):
+                n_inf_key = []
+                children = graph.successors(node)
+                if len(children) > 0:
+                    for child in children:
+                        edge_key = 0
+                        for k in graph.edge[node][child]:
+                            edge_key = k
+                            break # Assume only one edge between node and child, since duplicated edges were removed in previous step
+                        n_inf_key.append((child,edge_key))
+                    n_inf_key = set(n_inf_key)
+                    if n_inf_key in node_info_keys:
+                        redirect_node = node_info_values[node_info_keys.index(n_inf_key)]
+                        _mdg_move_parents_to_new_child(graph, node, redirect_node)
+                        graph.remove_node(node)
+                        modified = True
+                        break
+                    else:
+                        node_info_values[idx] = node
+                        node_info_keys[idx] = n_inf_key
+
+        if not inplace:
+            return graph
 
 
 
