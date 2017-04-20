@@ -30,7 +30,7 @@ class DiscreteFactor(BaseFactor):
     """
 
     @StateNameInit()
-    def __init__(self, variables, cardinality, values):
+    def __init__(self, variables, cardinality, values,value_placeholder=False):
         """
         Initialize a factor class.
 
@@ -96,21 +96,24 @@ class DiscreteFactor(BaseFactor):
         if isinstance(variables, six.string_types):
             raise TypeError("Variables: Expected type list or array like, got string")
 
-        values = np.array(values, dtype=float)
-
         if len(cardinality) != len(variables):
             raise ValueError("Number of elements in cardinality must be equal to number of variables")
-
-        if values.size != np.product(cardinality):
-            raise ValueError("Values array must be of size: {size}".format(
-                size=np.product(cardinality)))
 
         if len(set(variables)) != len(variables):
             raise ValueError("Variable names cannot be same")
 
         self.variables = list(variables)
         self.cardinality = np.array(cardinality, dtype=int)
-        self.values = values.reshape(self.cardinality)
+
+        if not value_placeholder:
+            values = np.array(values, dtype=float)
+            if values.size != np.product(cardinality):
+                raise ValueError("Values array must be of size: {size}".format(
+                    size=np.product(cardinality)))
+            self.values = values.reshape(self.cardinality)
+        else:
+            self.values = values
+
 
     def scope(self):
         """

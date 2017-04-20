@@ -1,6 +1,7 @@
 from .base import Inference
 from .ExactInference import BeliefPropagation
 from .ExactInference import VariableElimination
+from .VariableEliminationADD import VariableEliminationADD
 from .dbn_inference import DBNInference
 from .mplp import Mplp
 
@@ -11,4 +12,5 @@ __all__ = ['Inference',
            'BayesianModelSampling',
            'GibbsSampling',
            'Mplp',
-           'continuous']
+           'continuous',
+           'VariableEliminationADD']
