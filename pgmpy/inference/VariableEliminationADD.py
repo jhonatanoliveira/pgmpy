@@ -12,12 +12,14 @@ from pgmpy.factors.discrete import AlgebraicDecisionDiagram
 class VariableEliminationADD():
 
     @StateNameInit()
-    def __init__(self, model, add_factors):
+    def __init__(self, model, add_factors, global_node_id_gen):
         self.model = model
         self.variables = model.nodes()
 
         self.cardinality = {}
         self.factors = defaultdict(list)
+
+        self.node_id_gen = global_node_id_gen
 
         for node in model.nodes():
                 add = add_factors[node]
@@ -64,7 +66,6 @@ class VariableEliminationADD():
                  set(variables).union(set(evidence.keys() if evidence else []))):
             raise ValueError("Elimination order contains variables which are in"
                              " variables or evidence args")
-
         for var in elimination_order:
             # Removing all the factors containing the variables which are
             # eliminated (as all the factors should be considered only once)
@@ -72,8 +73,35 @@ class VariableEliminationADD():
             for factor in working_factors[var]:
                 if not set(factor.variables).intersection(eliminated_variables):
                     factors.append(factor)
-            phi = VariableEliminationADD._adds_product(factors)
-            phi = phi.marginalize([var], inplace=False)
+            ### DEBUG
+            # if var == "BP":
+            #     print("*** Elimination of: " + var)
+            #     print("---> Factors involved:")
+            #     for f in factors:
+            #         print(f.variables)
+            ###---DEBUG
+            phi = VariableEliminationADD._adds_product(factors, self.node_id_gen)
+            ### DEBUG
+            # from networkx.drawing.nx_pydot import write_dot
+            # if var == "BP":
+            #     print("**** Happened in Product! ****")
+            #     print("---> Factors:")
+            #     for i,f in enumerate(factors):
+            #         print(f.variables)
+            #         write_dot(f.graph, "p"+str(i)+".dot")
+            #     print("---> Final Product:")
+            #     print(phi.variables)
+            #     write_dot(phi.graph, "p.dot")
+            ###---DEBUG
+            phi = phi.marginalize([var], self.node_id_gen, inplace=False)
+            ### DEBUG
+            # if var == "BP":
+            #     print("**** Happened in Marginalization! ****")
+            #     print("---> Final marginal for "+var + ":")
+            #     print(phi.variables)
+            #     write_dot(phi.graph, "m.dot")
+            #     return
+            ###---DEBUG
             del working_factors[var]
             for variable in phi.variables:
                 working_factors[variable].add(phi)
@@ -88,10 +116,11 @@ class VariableEliminationADD():
 
         query_var_factor = {}
         for query_var in variables:
-            phi = VariableEliminationADD._adds_product(final_distribution)
+            phi = VariableEliminationADD._adds_product(final_distribution, self.node_id_gen)
             query_var_factor[query_var] = phi.marginalize(list(set(variables) -
-                                                               set([query_var])),
-                                                          inplace=False).normalize(inplace=False)
+                                                               set([query_var])), self.node_id_gen,
+                                                          inplace=False)
+            query_var_factor[query_var] = query_var_factor[query_var].normalize(inplace=False)
         return query_var_factor
 
     def query(self, variables, evidence=None, elimination_order=None):
@@ -101,7 +130,7 @@ class VariableEliminationADD():
         return self._variable_elimination(variables, 'marginalize', evidence=evidence, elimination_order=elimination_order)
 
     @staticmethod
-    def _adds_product(adds):
+    def _adds_product(adds, global_node_id_gen):
         phi = None
         is_first = True
         for factor in adds:
@@ -109,5 +138,5 @@ class VariableEliminationADD():
                 phi = factor
                 is_first = False
             else:
-                phi = phi.product(factor, inplace=False)
+                phi = phi.product(factor, global_node_id_gen, inplace=False)
         return phi

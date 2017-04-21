@@ -23,6 +23,9 @@ class NodeIdGenerator:
     def remove_prefix(self, id):
         return id.replace(self.prefix, "")
 
+    def copy(self):
+        return NodeIdGenerator(self.id_counter, self.prefix)
+
 
 def _mdg_has_labeled_edge(multiDiGraph, label_n1, label_n2, edge_key):
     """
