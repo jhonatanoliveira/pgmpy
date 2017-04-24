@@ -9,6 +9,8 @@ from pgmpy.utils import StateNameDecorator, StateNameInit
 from pgmpy.inference.EliminationOrder import WeightedMinFill
 from pgmpy.factors.discrete import AlgebraicDecisionDiagram
 
+import logging
+
 class VariableEliminationADD():
 
     @StateNameInit()
@@ -30,6 +32,7 @@ class VariableEliminationADD():
 
     @StateNameDecorator(argument='evidence', return_val=None)
     def _variable_elimination(self, variables, operation, evidence=None, elimination_order=None):
+
         if isinstance(variables, string_types):
             raise TypeError("variables must be a list of strings")
         if isinstance(evidence, string_types):
@@ -66,7 +69,9 @@ class VariableEliminationADD():
                  set(variables).union(set(evidence.keys() if evidence else []))):
             raise ValueError("Elimination order contains variables which are in"
                              " variables or evidence args")
+        logging.info("Running VE with query variables: {}, evidence: {}, and elimination order: {}".format(str(variables), str(evidence), str(elimination_order)))
         for var in elimination_order:
+            logging.info("VE is eliminating variable {}".format(var))
             # Removing all the factors containing the variables which are
             # eliminated (as all the factors should be considered only once)
             factors = []
@@ -74,33 +79,21 @@ class VariableEliminationADD():
                 if not set(factor.variables).intersection(eliminated_variables):
                     factors.append(factor)
             ### DEBUG
-            # if var == "BP":
-            #     print("*** Elimination of: " + var)
-            #     print("---> Factors involved:")
-            #     for f in factors:
-            #         print(f.variables)
+            print(">>>>> Involved tables:")
+            print([ f.variables for f in factors])
             ###---DEBUG
             phi = VariableEliminationADD._adds_product(factors, self.node_id_gen)
             ### DEBUG
-            # from networkx.drawing.nx_pydot import write_dot
-            # if var == "BP":
-            #     print("**** Happened in Product! ****")
-            #     print("---> Factors:")
-            #     for i,f in enumerate(factors):
-            #         print(f.variables)
-            #         write_dot(f.graph, "p"+str(i)+".dot")
-            #     print("---> Final Product:")
-            #     print(phi.variables)
-            #     write_dot(phi.graph, "p.dot")
+            print(">>>>> Product:")
+            from networkx.drawing.nx_pydot import write_dot
+            write_dot(phi.graph, var+"_prod.dot")
+            return
             ###---DEBUG
             phi = phi.marginalize([var], self.node_id_gen, inplace=False)
             ### DEBUG
-            # if var == "BP":
-            #     print("**** Happened in Marginalization! ****")
-            #     print("---> Final marginal for "+var + ":")
-            #     print(phi.variables)
-            #     write_dot(phi.graph, "m.dot")
-            #     return
+            print(">>>>> Marginalization:")
+            from networkx.drawing.nx_pydot import write_dot
+            write_dot(phi.graph, var+"_marg.dot")
             ###---DEBUG
             del working_factors[var]
             for variable in phi.variables:
@@ -117,16 +110,24 @@ class VariableEliminationADD():
         query_var_factor = {}
         for query_var in variables:
             phi = VariableEliminationADD._adds_product(final_distribution, self.node_id_gen)
-            query_var_factor[query_var] = phi.marginalize(list(set(variables) -
-                                                               set([query_var])), self.node_id_gen,
-                                                          inplace=False)
-            query_var_factor[query_var] = query_var_factor[query_var].normalize(inplace=False)
+            ### DEBUG
+            print(">>>>> Final Product:")
+            from networkx.drawing.nx_pydot import write_dot
+            write_dot(phi.graph, var+"fin_prod.dot")
+            ###---DEBUG
+            query_var_factor[query_var] = phi.marginalize(list(set(variables) - set([query_var])), self.node_id_gen, inplace=False)
+            ### DEBUG
+            print(">>>>> Final Marginalization:")
+            from networkx.drawing.nx_pydot import write_dot
+            write_dot(query_var_factor[query_var].graph, var+"fin_marg.dot")
+            ###---DEBUG
+            # TODO: Can't normalize ADD
+            # query_var_factor[query_var] = query_var_factor[query_var].normalize(inplace=False)
         return query_var_factor
 
     def query(self, variables, evidence=None, elimination_order=None):
-        out_vars = set(variables) - set(self.model.nodes())
-        if len( out_vars ) > 0:
-            raise ValueError("Variables {0} are not in given model.".format(",".join(out_vars)))
+        if not all([v in self.model.nodes() for v in variables]):
+            raise ValueError("Variables {0} are not in given model.".format(",".join(variables)))
         return self._variable_elimination(variables, 'marginalize', evidence=evidence, elimination_order=elimination_order)
 
     @staticmethod

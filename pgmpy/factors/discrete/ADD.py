@@ -89,18 +89,20 @@ class AlgebraicDecisionDiagram(DiscreteFactor):
                           self.ordering.copy(), self.node_id_gen.copy(), evidence, evidence_card)
 
     def normalize(self, inplace=True):
-        add = self if inplace else self.copy()
-        total_sum = 0
-        for leaf_node, data in add.graph.nodes(data=True):
-            if data["type"] == "sink":
-                total_sum += data["value"]
-        for leaf_node, data in add.graph.nodes(data=True):
-            if data["type"] == "sink":
-                new_value = add.graph.node[leaf_node]["value"]/total_sum
-                add.graph.node[leaf_node]["value"] = new_value
-                add.graph.node[leaf_node]["label"] = str(new_value)
-        if not inplace:
-            return add
+        pass
+        #TODO: fix normalize function
+        # add = self if inplace else self.copy()
+        # total_sum = 0
+        # for leaf_node, data in add.graph.nodes(data=True):
+        #     if data["type"] == "sink":
+        #         total_sum += data["value"]
+        # for leaf_node, data in add.graph.nodes(data=True):
+        #     if data["type"] == "sink":
+        #         new_value = add.graph.node[leaf_node]["value"]/total_sum
+        #         add.graph.node[leaf_node]["value"] = new_value
+        #         add.graph.node[leaf_node]["label"] = str(new_value)
+        # if not inplace:
+        #     return add
 
     def marginalize(self, variables, global_node_id_gen, inplace=True):
 
@@ -118,8 +120,6 @@ class AlgebraicDecisionDiagram(DiscreteFactor):
         index_to_keep = sorted(set(range(len(add.variables))) - set(var_indexes))
         add.variables = [add.variables[index] for index in index_to_keep]
         add.cardinality = add.cardinality[index_to_keep]
-
-        add.normalize()
 
         if not inplace:
             return add
@@ -445,15 +445,36 @@ class AlgebraicDecisionDiagram(DiscreteFactor):
 
         var_cards = tabularCPD.get_cardinality(var_ordering)
 
-        id_generator = global_node_id_gen
+        # In order to maintain the same probabilities for original assignment, we need to compute
+        # the stride for the original CPD (without changing the order, as required by the variable ordering in an ADD).
+        stride = {var: 1 for var in tabularCPD.variables}
+        is_first = True
+        for var in tabularCPD.variables:
+            if is_first:
+                is_first = False
+            else:
+                stride_var = 1
+                for previous_var in tabularCPD.variables:
+                    if previous_var == var:
+                        break
+                    else:
+                        stride_var *= var_cards[previous_var]
+                stride[var] = stride_var
 
         dag = nx.MultiDiGraph()
-        root = id_generator.get_next_id()
+        root = global_node_id_gen.get_next_id()
         dag.add_node(root, {"label": var_ordering[0], "type": "variable"})
 
         assignment = {var:0 for var in var_ordering}
         # Here, order "F" assumes first variable value changing faster
-        for value in tabularCPD.values.reshape(np.product(tabularCPD.cardinality), order="F"):
+        cpd_values = tabularCPD.values.reshape(np.product(tabularCPD.cardinality), order="F")
+        for _ in range(0,len(cpd_values)):
+
+            # The correct value for current assignment (notice that the ADD ordering might change the assignment ordering from the original CPD)
+            idx_vl = 0
+            for var in tabularCPD.variables:
+                idx_vl += assignment[var] * stride[var]
+            value = cpd_values[idx_vl]
 
             curr_node = root
 
@@ -464,22 +485,16 @@ class AlgebraicDecisionDiagram(DiscreteFactor):
                     next_node_label = var_ordering[nxt_node_ord_idx]
                     child_node = _mdg_has_labeled_child(dag, curr_node, next_node_label, assignment[node_label])
                     if not child_node:
-                        child_node = id_generator.get_next_id()
+                        child_node = global_node_id_gen.get_next_id()
                         dag.add_node(child_node, {"label": next_node_label, "type":"variable"})
                         dag.add_edge(curr_node,child_node,key=assignment[node_label],attr_dict={"value":assignment[node_label], "label":assignment[node_label]})
                     curr_node = child_node
 
                 # No more variable in ordering, then add an edge between current node and the probability leaf node
                 else:
-                    child_node = id_generator.get_next_id()
+                    child_node = global_node_id_gen.get_next_id()
                     dag.add_node(child_node, {"label": value, "type":"sink", "value": value})
                     dag.add_edge(curr_node,child_node,key=assignment[node_label],attr_dict={"value":assignment[node_label], "label":assignment[node_label]})
-
-            ### DEBUG
-            if tabularCPD.variable=="tub":
-                print(assignment)
-                print(value)
-            ###---DEBUG
             for var in var_ordering:
               assignment[var] += 1
               if assignment[var] == var_cards[var]:
