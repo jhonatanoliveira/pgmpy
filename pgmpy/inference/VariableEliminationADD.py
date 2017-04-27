@@ -79,21 +79,26 @@ class VariableEliminationADD():
                 if not set(factor.variables).intersection(eliminated_variables):
                     factors.append(factor)
             ### DEBUG
-            print(">>>>> Involved tables:")
-            print([ f.variables for f in factors])
+            # print(">>>>> Involved tables:")
+            # print([ f.variables for f in factors])
+            # for f in factors:
+            #     from networkx.drawing.nx_pydot import write_dot
+            #     write_dot(f.graph, var+"_"+"_".join(f.variables)+"_prod.dot")
             ###---DEBUG
             phi = VariableEliminationADD._adds_product(factors, self.node_id_gen)
             ### DEBUG
-            print(">>>>> Product:")
-            from networkx.drawing.nx_pydot import write_dot
-            write_dot(phi.graph, var+"_prod.dot")
-            return
+            # print(">>>>> Product:")
+            # from networkx.drawing.nx_pydot import write_dot
+            # write_dot(phi.graph, var+"_prod.dot")
+            # return
             ###---DEBUG
             phi = phi.marginalize([var], self.node_id_gen, inplace=False)
             ### DEBUG
-            print(">>>>> Marginalization:")
+            # print(">>>>> Marginalization:")
             from networkx.drawing.nx_pydot import write_dot
             write_dot(phi.graph, var+"_marg.dot")
+            # if var == "smoke":
+            #     return
             ###---DEBUG
             del working_factors[var]
             for variable in phi.variables:
@@ -111,13 +116,13 @@ class VariableEliminationADD():
         for query_var in variables:
             phi = VariableEliminationADD._adds_product(final_distribution, self.node_id_gen)
             ### DEBUG
-            print(">>>>> Final Product:")
+            # print(">>>>> Final Product:")
             from networkx.drawing.nx_pydot import write_dot
             write_dot(phi.graph, var+"fin_prod.dot")
             ###---DEBUG
             query_var_factor[query_var] = phi.marginalize(list(set(variables) - set([query_var])), self.node_id_gen, inplace=False)
             ### DEBUG
-            print(">>>>> Final Marginalization:")
+            # print(">>>>> Final Marginalization:")
             from networkx.drawing.nx_pydot import write_dot
             write_dot(query_var_factor[query_var].graph, var+"fin_marg.dot")
             ###---DEBUG

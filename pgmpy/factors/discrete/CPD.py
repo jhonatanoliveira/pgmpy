@@ -131,7 +131,7 @@ class TabularCPD(DiscreteFactor):
         if values.ndim != 2:
             raise TypeError("Values must be a 2D list/array")
 
-        super(TabularCPD, self).__init__(variables, cardinality, values.flatten('C'),
+        super(TabularCPD, self).__init__(variables, cardinality, values.T.reshape(np.product(cardinality)),
                                          state_names=self.state_names)
 
     def __repr__(self):

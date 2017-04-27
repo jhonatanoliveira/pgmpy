@@ -237,7 +237,7 @@ class AlgebraicDecisionDiagram(DiscreteFactor):
                 result_node = AlgebraicDecisionDiagram.apply(add_0_root, add_1_root, to_sum[0], to_sum[1], "sum", ordering, result_node, result_add, var_cardinalities, node_id_gen=global_node_id_gen, cache={})
                 ### DEBUG
                 # from networkx.drawing.nx_pydot import write_dot
-                # if var == "BP":
+                # if var == "smoke":
                 #     print("**** During Marginalization of "+var+" ****")
                 #     write_dot(to_sum[0], "m0.dot")
                 #     write_dot(to_sum[1], "m1.dot")
@@ -467,7 +467,14 @@ class AlgebraicDecisionDiagram(DiscreteFactor):
 
         assignment = {var:0 for var in var_ordering}
         # Here, order "F" assumes first variable value changing faster
-        cpd_values = tabularCPD.values.reshape(np.product(tabularCPD.cardinality), order="F")
+        cpd_values = tabularCPD.values.reshape(np.product(tabularCPD.cardinality), order="C")
+        ### DEBUG
+        # if tabularCPD.variable == "dysp":
+        #     print("**** HERE <<<<")
+        #     print(tabularCPD.variables)
+        #     print(tabularCPD.values)
+        #     print(cpd_values)
+        ###---DEBUG
         for _ in range(0,len(cpd_values)):
 
             # The correct value for current assignment (notice that the ADD ordering might change the assignment ordering from the original CPD)
