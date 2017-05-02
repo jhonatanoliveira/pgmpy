@@ -14,4 +14,5 @@ __all__ = ['Inference',
            'GibbsSampling',
            'Mplp',
            'continuous',
-           'VariableEliminationADD']
+           'VariableEliminationADD',
+           'ACInference']

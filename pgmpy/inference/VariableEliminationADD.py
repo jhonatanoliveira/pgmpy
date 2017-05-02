@@ -96,7 +96,6 @@ class VariableEliminationADD():
 
         query_var_factor = {}
         for query_var in variables:
-            logging.info("O {}".format(var))
             phi = VariableEliminationADD._adds_product(final_distribution, self.node_id_gen)
             query_var_factor[query_var] = phi.marginalize(list(set(variables) - set([query_var])), self.node_id_gen, inplace=False)
             # TODO: Can't normalize ADD

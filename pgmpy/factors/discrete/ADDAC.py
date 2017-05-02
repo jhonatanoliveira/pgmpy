@@ -2,7 +2,6 @@ import numbers
 
 import numpy as np
 import networkx as nx
-import math
 
 from pgmpy.models import BayesianModel
 from pgmpy.factors.discrete import TabularCPD
@@ -89,7 +88,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
         return AlgebraicDecisionDiagramAC(self.variables[0], self.cardinality[0], self.graph.copy(),
                           self.ordering.copy(), self.node_id_gen.copy(), evidence, evidence_card)
 
-    def marginalize(self, variables, global_node_id_gen, inplace=True):
+    def marginalize(self, variables, global_node_id_gen, ac, inplace=True):
 
         # if self.variable in variables:
         #     raise ValueError("Marginalization not allowed on the variable on which CPD is defined")
@@ -99,7 +98,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
         for var in variables:
             if var not in add.variables:
                 raise ValueError("{var} not in scope.".format(var=var))
-            add.graph = AlgebraicDecisionDiagramAC.marginalize_add(var, add.graph, add.ordering, add.get_cardinality(add.variables), global_node_id_gen)
+            add.graph = AlgebraicDecisionDiagramAC.marginalize_add(var, add.graph, add.ordering, add.get_cardinality(add.variables), global_node_id_gen, ac)
 
         var_indexes = [add.variables.index(var) for var in variables]
         index_to_keep = sorted(set(range(len(add.variables))) - set(var_indexes))
@@ -128,7 +127,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
                 new_var_card = phi1.get_cardinality(extra_vars)
                 phi.cardinality = np.append(phi.cardinality, [new_var_card[var] for var in extra_vars])
 
-            phi.graph = AlgebraicDecisionDiagramAC.multiply_add(phi.graph, phi1.graph, phi.get_cardinality(phi.variables), phi.ordering, global_node_id_gen)
+            phi.graph = AlgebraicDecisionDiagramAC.multiply_add(phi.graph, phi1.graph, phi.get_cardinality(phi.variables), phi.ordering, global_node_id_gen, ac)
 
         if not inplace:
             return phi
@@ -179,9 +178,33 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
         for var in ordering:
             cpd = model.get_cpds(var)
             add = AlgebraicDecisionDiagramAC.from_tabular_cpd(cpd, ordering, node_id_gen, ac)
-            factors[var] = add
+            ind_add = AlgebraicDecisionDiagramAC.generate_indicator_add(var, ordering, model, node_id_gen, ac)
+            factors[var] = [add, ind_add]
 
         return factors
+
+    @staticmethod
+    def generate_indicator_add(var, ordering, model, node_id_gen, ac):
+        result_add = nx.MultiDiGraph()
+        new_var_node_id = node_id_gen.get_next_id()
+        result_add.add_node(new_var_node_id, {"type": "variable_node", "label": var})
+        var_card = model.get_cardinality(var)
+        for value_child in range(0,var_card):
+            # Create AC node
+            ac_sink_id = ac.add_indicator(var, value_child)
+            # Add ADD graph node
+            new_sink_node_id = node_id_gen.get_next_id()
+            result_add.add_node(new_sink_node_id, {"type": "sink", "value": ac_sink_id, "label": "{}".format(ac_sink_id)})
+            result_add.add_edge(new_var_node_id, new_sink_node_id, key=value_child, attr_dict={"value": value_child, "label": "{}".format(value_child)})
+        # Construct ADD object
+        variable = var
+        variable_card = var_card
+        graph = result_add
+        global_node_id_gen = node_id_gen
+        evidence = []
+        evidence_card = []
+        add_indicator = AlgebraicDecisionDiagramAC(variable, variable_card, graph, ordering, global_node_id_gen, evidence=evidence, evidence_card=evidence_card)
+        return add_indicator
 
 
     @staticmethod
@@ -202,7 +225,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
             evidence=evidence, evidence_card=evidence_card)
 
     @staticmethod
-    def marginalize_add(var, add, ordering, var_cardinalities, global_node_id_gen):
+    def marginalize_add(var, add, ordering, var_cardinalities, global_node_id_gen, ac):
 
         add_root = AlgebraicDecisionDiagramAC.get_root(add)
 
@@ -219,7 +242,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
                 add_0_root = AlgebraicDecisionDiagramAC.get_root(to_sum[0])
                 add_1_root = AlgebraicDecisionDiagramAC.get_root(to_sum[1])
                 result_add = nx.MultiDiGraph()
-                result_node = AlgebraicDecisionDiagramAC.apply(add_0_root, add_1_root, to_sum[0], to_sum[1], "sum", ordering, result_node, result_add, var_cardinalities, node_id_gen=global_node_id_gen, cache={})
+                result_node = AlgebraicDecisionDiagramAC.apply(add_0_root, add_1_root, to_sum[0], to_sum[1], "sum", ordering, result_node, result_add, var_cardinalities, ac, node_id_gen=global_node_id_gen, cache={})
                 to_sum = [result_add]
 
         if len(to_sum) > 0:
@@ -227,12 +250,12 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
         return final_add
 
     @staticmethod
-    def multiply_add(cpt1_add, cpt2_add, var_cardinalities, ordering, global_node_id_gen):
+    def multiply_add(cpt1_add, cpt2_add, var_cardinalities, ordering, global_node_id_gen, ac):
         result_node_apply = None
         result_add_apply = nx.MultiDiGraph()
         cpt1_add_root = AlgebraicDecisionDiagramAC.get_root(cpt1_add)
         cpt2_add_root = AlgebraicDecisionDiagramAC.get_root(cpt2_add)
-        AlgebraicDecisionDiagramAC.apply(cpt1_add_root, cpt2_add_root, cpt1_add, cpt2_add, "product", ordering, result_node_apply, result_add_apply, var_cardinalities, node_id_gen=global_node_id_gen, cache={})
+        AlgebraicDecisionDiagramAC.apply(cpt1_add_root, cpt2_add_root, cpt1_add, cpt2_add, "product", ordering, result_node_apply, result_add_apply, var_cardinalities, ac, node_id_gen=global_node_id_gen, cache={})
 
         return result_add_apply
 
@@ -265,17 +288,13 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
             return len(ordering)
 
     @staticmethod
-    def unique_sink(result_add, node1, node2, add1, add2, op, node_id_gen):
+    def unique_sink(result_add, node1, node2, add1, add2, op, node_id_gen, ac):
         new_value = None
         if op == "product":
-            #  TODO: implement log version
-            # new_value = add1.node[node1]["value"] + add2.node[node2]["value"]
-            new_value = add1.node[node1]["value"] * add2.node[node2]["value"]
+            new_value = ac.add_operation("product", add1.node[node1]["value"], add2.node[node2]["value"])
         elif op == "sum":
-            #  TODO: implement log version
-            # new_value = np.logaddexp(add1.node[node1]["value"], add2.node[node2]["value"])
-            new_value = add1.node[node1]["value"] + add2.node[node2]["value"]
-        poss_sink = [node for node, data in result_add.nodes(True) if data["type"]=="sink" and math.isclose(data["value"], new_value)]
+            new_value = ac.add_operation("sum", add1.node[node1]["value"], add2.node[node2]["value"])
+        poss_sink = [node for node, data in result_add.nodes(True) if data["type"]=="sink" and data["value"] == new_value]
         len_unique_sink = len(poss_sink)
         unique_sink = None
         if len_unique_sink > 0:
@@ -285,13 +304,13 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
                 raise ValueError("ADDs should have unique leaf nodes (sink).")
         else:
             new_node_id = node_id_gen.get_next_id()
-            result_add.add_node(new_node_id, {"type": "sink", "value": new_value, "label": "{:.4f}".format(new_value)})
+            result_add.add_node(new_node_id, {"type": "sink", "value": new_value, "label": "{}".format(new_value)})
             unique_sink = new_node_id
         return unique_sink
 
     @staticmethod
     def unique_sink_solo_add(result_add, value, node_id_gen):
-        poss_sink = [node for node, data in result_add.nodes(True) if data["type"]=="sink" and math.isclose(data["value"], value)]
+        poss_sink = [node for node, data in result_add.nodes(True) if data["type"]=="sink" and data["value"] == value]
         len_unique_sink = len(poss_sink)
         unique_sink = None
         if len_unique_sink > 0:
@@ -301,7 +320,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
                 raise ValueError("ADDs should have unique leaf nodes (sink).")
         else:
             new_node_id = node_id_gen.get_next_id()
-            result_add.add_node(new_node_id, {"type": "sink", "value": value, "label": "{:.4f}".format(value)})
+            result_add.add_node(new_node_id, {"type": "sink", "value": value, "label": "{}".format(value)})
             unique_sink = new_node_id
         return unique_sink
 
@@ -320,11 +339,11 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
         new_node_id = node_id_gen.get_next_id()
         result_add.add_node(new_node_id, {"type": "variable_node", "label": node_label})
         for vl2,value_child in enumerate(value_children):
-            result_add.add_edge(new_node_id, value_child, key=vl2, attr_dict={"value": vl2, "label": str(vl2)})
+            result_add.add_edge(new_node_id, value_child, key=vl2, attr_dict={"value": vl2, "label": "{}".format(vl2)})
         return new_node_id
 
     @staticmethod
-    def apply(node1, node2, add1, add2, op, ordering, result_node, result_add, var_cardinalities, node_id_gen, cache):
+    def apply(node1, node2, add1, add2, op, ordering, result_node, result_add, var_cardinalities, ac, node_id_gen, cache):
 
         node1_label = AlgebraicDecisionDiagramAC.node_label(add1,node1)
         node2_label = AlgebraicDecisionDiagramAC.node_label(add2,node2)
@@ -343,12 +362,12 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
         if (node1, node2) in cache:
             return cache[(node1, node2)]
         elif (add1.node[node1]["type"] == "sink") and (add2.node[node2]["type"] == "sink"):
-            result_node = AlgebraicDecisionDiagramAC.unique_sink(result_add, node1, node2, add1, add2, op, node_id_gen)
+            result_node = AlgebraicDecisionDiagramAC.unique_sink(result_add, node1, node2, add1, add2, op, node_id_gen, ac)
         elif node1_label == node2_label:
             # OBS: each child in this list is in order to its correspondent edges' value. For instance, the first child should have edge's value 0 with its parent.
             value_children = []
             for vl in range(0,var_cardinalities[node1_label]):
-                value_child = AlgebraicDecisionDiagramAC.apply(AlgebraicDecisionDiagramAC.var_value(node1, add1, value=vl), AlgebraicDecisionDiagramAC.var_value(node2, add2, value=vl), add1, add2, op, ordering, result_node, result_add, var_cardinalities, node_id_gen, cache)
+                value_child = AlgebraicDecisionDiagramAC.apply(AlgebraicDecisionDiagramAC.var_value(node1, add1, value=vl), AlgebraicDecisionDiagramAC.var_value(node2, add2, value=vl), add1, add2, op, ordering, result_node, result_add, var_cardinalities, ac, node_id_gen, cache)
                 value_children.append(value_child)
             if all(value_children[0] == ch for ch in value_children):
                 result_node = value_children[0]
@@ -357,7 +376,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
         else:
             value_children = []
             for vl in range(0,var_cardinalities[node1_label]):
-                value_child = AlgebraicDecisionDiagramAC.apply(AlgebraicDecisionDiagramAC.var_value(node1, add1, value=vl), node2, add1, add2, op, ordering, result_node, result_add, var_cardinalities, node_id_gen, cache)
+                value_child = AlgebraicDecisionDiagramAC.apply(AlgebraicDecisionDiagramAC.var_value(node1, add1, value=vl), node2, add1, add2, op, ordering, result_node, result_add, var_cardinalities, ac, node_id_gen, cache)
                 value_children.append(value_child)
             if all(value_children[0] == ch for ch in value_children):
                 result_node = value_children[0]

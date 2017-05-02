@@ -20,3 +20,21 @@ class ArithmeticCircuit():
             new_node_id = self.node_id_gen.get_next_id()
             self.graph.add_node(new_node_id, {"type": "sink", "value": value, "label": "{}".format(value)})
             return new_node_id
+
+    def add_operation(self, operation, child1, child2):
+        new_node_id = self.node_id_gen.get_next_id()
+        label_op = None
+        if operation == "product":
+            label_op = "*"
+        elif operation == "sum":
+            label_op = "+"
+        self.graph.add_node(new_node_id, {"type": "operation_node", "operation": operation, "label": "{}".format(label_op)})
+        self.graph.add_edge(new_node_id, child1)
+        self.graph.add_edge(new_node_id, child2)
+        return new_node_id
+
+
+    def add_indicator(self, var, value):
+        new_node_id = self.node_id_gen.get_next_id()
+        self.graph.add_node(new_node_id, {"type": "indicator", "variable": var, "value": value, "label": "{}-{}".format(var, value)})
+        return new_node_id
