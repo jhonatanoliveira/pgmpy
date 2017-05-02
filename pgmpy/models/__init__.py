@@ -8,6 +8,7 @@ from .MarkovModel import MarkovModel
 from .NaiveBayes import NaiveBayes
 from .NoisyOrModel import NoisyOrModel
 from .LinearGaussianBayesianNetwork import LinearGaussianBayesianNetwork
+from .ArithmeticCircuit import ArithmeticCircuit
 
 __all__ = ['BayesianModel',
            'NoisyOrModel',

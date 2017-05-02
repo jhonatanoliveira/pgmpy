@@ -2,6 +2,7 @@ from .base import Inference
 from .ExactInference import BeliefPropagation
 from .ExactInference import VariableElimination
 from .VariableEliminationADD import VariableEliminationADD
+from .ACInference import ACInference
 from .dbn_inference import DBNInference
 from .mplp import Mplp
 
