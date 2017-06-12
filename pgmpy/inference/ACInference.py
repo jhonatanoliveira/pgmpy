@@ -92,11 +92,11 @@ class ACInference():
         return self._variable_elimination(ac, 'marginalize', evidence=evidence, elimination_order=elimination_order)
 
 
-    def propagate_up(self, ac, indicator_values={}, sink_values={}):
+    # def propagate_up(self, ac, indicator_values={}, sink_values={}):
 
-        vr = {}
-        for node in ac.nodes():
-            if node 
+    #     vr = {}
+    #     for node in ac.nodes():
+    #         if node 
 
 
     @staticmethod
