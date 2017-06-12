@@ -3,6 +3,7 @@ import numbers
 import numpy as np
 import networkx as nx
 import math
+import logging
 
 from pgmpy.models import BayesianModel
 from pgmpy.factors.discrete import TabularCPD
@@ -297,6 +298,8 @@ class AlgebraicDecisionDiagram(DiscreteFactor):
             if len_unique_sink == 1:
                 unique_sink = poss_sink[0]
             else:
+                for n in poss_sink:
+                    logging.info("Warn: node {} has value {}.".format(n,result_add.node[n]))
                 raise ValueError("ADDs should have unique leaf nodes (sink).")
         else:
             new_node_id = node_id_gen.get_next_id()

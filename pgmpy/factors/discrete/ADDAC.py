@@ -472,7 +472,7 @@ class AlgebraicDecisionDiagramAC(DiscreteFactor):
                     #TODO: implement log version
                     # dag.add_node(child_node, {"label": "{:.4f}".format(value), "type":"sink", "value": np.log(value)})
                     # AC Construction
-                    ac_node_id = ac.add_sink(value)
+                    ac_node_id = ac.add_sink(value, tabularCPD.variable,assignment[tabularCPD.variable])
                     dag.add_node(child_node, {"label": "{}".format(ac_node_id), "type":"sink", "value": ac_node_id})
                     dag.add_edge(curr_node,child_node,key=assignment[node_label],attr_dict={"value":assignment[node_label], "label":assignment[node_label]})
             for var in var_ordering:

@@ -37,10 +37,6 @@ class ACInference():
         variables = []
 
         eliminated_variables = set()
-        ### DEBUG
-        print("-----> self.factors")
-        print(self.factors)
-        ###---DEBUG
         working_factors = {node: {factor for factor in self.factors[node]}
                            for node in self.factors}
 
@@ -94,6 +90,14 @@ class ACInference():
 
     def compile(self, ac, evidence=None, elimination_order=None):
         return self._variable_elimination(ac, 'marginalize', evidence=evidence, elimination_order=elimination_order)
+
+
+    def propagate_up(self, ac, indicator_values={}, sink_values={}):
+
+        vr = {}
+        for node in ac.nodes():
+            if node 
+
 
     @staticmethod
     def _adds_product(adds, global_node_id_gen, ac):
